@@ -122,6 +122,14 @@ Qed.
 Definition Monad_Mor {C : precategory} (T T' : Monad C) : UU
   := ∑ α : T ⟹ T', Monad_Mor_laws α.
 
+Lemma isaset_Monad_Mor {C : precategory} (hs : has_homsets C) (T T' : Monad C) :
+  isaset (Monad_Mor T T').
+Proof.
+  apply isaset_total2.
+  + apply isaset_nat_trans. assumption.
+  +  intro. apply isasetaprop. apply isaprop_Monad_Mor_laws. assumption.
+Qed.
+
 Coercion nat_trans_from_monad_mor (C : precategory) (T T' : Monad C) (s : Monad_Mor T T')
   : T ⟹ T' := pr1 s.
 
