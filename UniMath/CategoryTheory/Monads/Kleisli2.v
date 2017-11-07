@@ -22,7 +22,7 @@ Require Import UniMath.CategoryTheory.functor_categories.
 Require Import UniMath.CategoryTheory.whiskering.
 Require Import UniMath.CategoryTheory.limits.terminal.
 Require Import UniMath.CategoryTheory.limits.bincoproducts.
-
+Require Import UniMath.CategoryTheory.Monads.Monads.
 Section Kleisli_precategory.
 
 Local Open Scope cat.
@@ -96,6 +96,33 @@ Proof.
   assumption. assumption.
 Qed.
 
+Lemma map_bind{C:precategory} {T: C->C}{K: Kleisli_Data T}(H:Kleisli_Laws K) : ∏ (a b c: C) (f:b-->c) (g:a--> T b), (map K f) ∘ (bind K g) = (bind K (map K f ∘ g)).
+Proof.
+  intros.
+  unfold map.
+  rewrite (bind_bind H).
+     apply idpath.
+Qed.
+
+Lemma bind_map{C:precategory} {T: C->C}{K: Kleisli_Data T}(H:Kleisli_Laws K) : ∏ (a b c: C) (f:b-->T c) (g:a-->b), (bind K f) ∘ (map K g) = (bind K (f ∘ g)).
+Proof.
+  intros.
+  unfold map.
+  rewrite (bind_bind H).
+  rewrite <- assoc.
+  rewrite bind_η.
+  apply idpath.
+  apply H.
+Qed.
+
+Lemma map_η{C:precategory} {T: C->C}{K: Kleisli_Data T}(H:Kleisli_Laws K) : ∏ (a b: C) (f: a --> b), map K f ∘ η K a = η K b ∘ f.
+Proof.
+  intros.
+  unfold map.
+  rewrite (bind_η H).
+  apply idpath.
+  Qed.
+
 Coercion kleisli_functor_data {C:precategory} {T: C->C}(K: Kleisli_Data T): functor_data C C := mk_functor_data T (@map C T K).
 
 Coercion is_functor_kleisli{C:precategory} {T: C->C}{K: Kleisli_Data T}(H: Kleisli_Laws K) : is_functor(kleisli_functor_data K) := map_id H ,, map_map H.
@@ -111,6 +138,29 @@ Defined.
 Print is_functor_kleisli.*)
 
 Coercion kleisli_functor{C: precategory} (K: Kleisli C) : functor C C :=  mk_functor K K.
+
+(**Bisogna forse definire meglio μ!**
+Definition kleisli_μ {C: precategory} (K: Kleisli C) : K □ K ⟹ K.
+Proof.
+  refine ((λ x:C, bind K (identity (K x))) ,, _ ).
+  unfold is_nat_trans. intros. simpl.
+  rewrite (map_bind K).
+  rewrite (bind_map K).
+  rewrite id_left.
+  rewrite id_right.
+  apply idpath.
+Defined.*)
+
+Lemma is_nat_trans_η {C: precategory}(K: Kleisli C): is_nat_trans (functor_identity C) K (η K).
+Proof.
+  unfold is_nat_trans.
+  simpl. intros. rewrite (map_η K). apply idpath.
+Qed.
+
+Definition nat_trans_η {C: precategory}(K: Kleisli C) : functor_identity C ⟹ K := (η K ,, is_nat_trans_η K).
+
+
+
 
 (* --------------------------------------------------------------------------------------------- *)
 (* ** Morphims of Kleisli monads.                                                                *)
@@ -154,6 +204,27 @@ Proof.
   apply isaprop_Kleisli_Mor_laws, hs.
 Defined.
 
+Lemma is_nat_trans_kleisli_mor{C : precategory}{T T' : Kleisli C} (α : Kleisli_Mor T T') : is_nat_trans T T' (pr1 α).
+Proof.
+  unfold is_nat_trans. intros. simpl.
+  unfold map.
+  rewrite <- (Kleisli_Mor_bind α).
+  rewrite <- assoc.
+  rewrite (Kleisli_Mor_η α).
+  apply idpath.
+Qed.
+
+Coercion nat_trans_kleisli_mor {C : precategory}{T T' : Kleisli C} (α : Kleisli_Mor T T') : nat_trans T T' := mk_nat_trans T T' (pr1 α) (is_nat_trans_kleisli_mor α).
+
+Lemma Kleisli_Mor_eq {C : precategory}(hs: has_homsets C){T T' : Kleisli C}(α α' : Kleisli_Mor T T') :
+  pr1 α  = pr1 α' -> α = α'.
+Proof.
+  intros.
+  apply subtypeEquality'.
+  + assumption.
+  + apply isaprop_Kleisli_Mor_laws.
+    apply hs.
+Qed.
 (* --------------------------------------------------------------------------------------------- *)
 (* Identity morphism.                                                                            *)
 (* --------------------------------------------------------------------------------------------- *)
@@ -237,7 +308,7 @@ Qed.
 
 Definition category_Kleisli (C : category) : category :=
   precategory_Kleisli C (homset_property C),, has_homsets_Kleisli C.
-
+(*Set Printing Coercions.*)
 Definition forgetfunctor_Kleisli (C : category) :
   functor (category_Kleisli C) (functor_category C C).
 Proof.
@@ -246,22 +317,148 @@ Proof.
     use mk_functor_data.
     + simpl.
       exact (λ K: Kleisli C, kleisli_functor K).
-    +
-simpl. intros a b K.    
-    apply (λ K, kleisli_functor_data K).
-  - use mk_functor_data.
-    + exact (fun M => pr1 M:functor C C).
-    + exact (fun M N f => pr1 f).
-  - abstract (split; red; intros;  reflexivity).
+    + simpl. intros T T' K.
+      exact  K.
+  -(*Sarebbe opportuno usare abstract*) split.
+    + red. intros. simpl. apply nat_trans_eq.
+      * apply C.
+      * intros; apply idpath.
+    + unfold functor_compax. simpl. intros. apply nat_trans_eq.
+      * apply C.
+      * intros. apply idpath.
 Defined.
-
+(*Set Printing Coercions.*)
 Lemma forgetKleisli_faithful C : faithful (forgetfunctor_Kleisli C).
 Proof.
-  intros M N.
-  apply isinclpr1.
-  intros α.
-  apply isaprop_Kleisli_Mor_laws.
-  apply homset_property.
+  intros K K'.
+  simpl.
+  apply isinclbetweensets.
+  - apply isaset_total2.
+    + apply impred_isaset.
+      intros. apply C.
+    + intros. apply isasetaprop. apply isaprop_Kleisli_Mor_laws. apply C.
+  - apply isaset_nat_trans. apply C.
+  - intros f g p.
+    apply Kleisli_Mor_eq.
+    + apply C.
+    + apply funextsec. intro X. change(pr1 (nat_trans_kleisli_mor f) X = pr1 (nat_trans_kleisli_mor g) X).
+      rewrite p.
+      apply idpath.
 Qed.
 
+(*Monad from Kleisli*)
+
+(**Bisogna forse definire meglio μ!**)
+Definition kleisli_μ {C: precategory} (K: Kleisli C) : K □ K ⟹ K.
+Proof.
+  refine ((λ x:C, bind K (identity (K x))) ,, _ ).
+  unfold is_nat_trans. intros. simpl.
+  rewrite (map_bind K).
+  rewrite (bind_map K).
+  rewrite id_left.
+  rewrite id_right.
+  apply idpath.
+Defined.
+
+
+
+Definition Kleisli_Monad_data {C: precategory}(T: Kleisli C) : Monad_data C.
+Proof.
+  unfold Monad_data.
+  exact (((kleisli_functor T) ,, kleisli_μ T ) ,, nat_trans_η T  ).
+Defined.
+
+Lemma Monad_laws_kleisli_monad_data {C : precategory}(T : Kleisli C) : (Monad_laws (Kleisli_Monad_data T)).
+Proof.
+unfold Monad_laws.
+simpl.
+split.
++ split. intros. apply (bind_η T). intros. rewrite (bind_map T).
+  rewrite id_right.
+  apply (η_bind T).
++ intros. rewrite (bind_map T). rewrite id_right.
+  rewrite (bind_bind T). rewrite id_left.
+  apply idpath.
+Qed.
+
+Coercion Monad_from_Kleisli{C: precategory}(T: Kleisli C) : Monad C :=
+  (Kleisli_Monad_data T ,, Monad_laws_kleisli_monad_data T).
+
+Lemma Monad_Mor_laws_Kleisli_Mor{C: precategory}{T T': Kleisli C}(α: Kleisli_Mor T T') : Monad_Mor_laws (T:=Monad_from_Kleisli T)(T':=Monad_from_Kleisli T')(nat_trans_kleisli_mor α).
+Proof.
+  split.
+  +  intros. simpl.
+     rewrite <- assoc.
+     rewrite (bind_map T').
+     rewrite id_right.
+     rewrite <- (Kleisli_Mor_bind α).
+     rewrite id_left.
+     apply idpath.
+  + intros. simpl. apply Kleisli_Mor_η.
+Qed.
+
+Definition Kleisli_Mor_from_Monad_Mor{C: precategory}{T T': Kleisli C}(α: Kleisli_Mor T T') : Monad_Mor T T' := (nat_trans_kleisli_mor α ,, Monad_Mor_laws_Kleisli_Mor α).
+
+Definition functor_data_monad_from_kleisli(C: precategory)(hs: has_homsets C): functor_data (precategory_Kleisli C hs) (precategory_Monad C hs).
+Proof.
+  refine (@mk_functor_data(precategory_Kleisli C hs) (precategory_Monad C hs) (λ T: Kleisli C, Monad_from_Kleisli T) _).
+  intros.
+  apply Kleisli_Mor_from_Monad_Mor.
+  exact X.
+Defined.
+
+Lemma is_functor_monad_from_kleisli{C: precategory}(hs: has_homsets C): is_functor (functor_data_monad_from_kleisli C hs).
+Proof.
+  split.
+  + red. simpl.
+    intros.
+    unfold Kleisli_Mor_from_Monad_Mor.
+    apply subtypeEquality'.
+  - simpl. apply subtypeEquality'.
+    * simpl. apply funextsec. intro x. apply idpath.
+    * apply isaprop_is_nat_trans.
+      assumption.
+  - apply isaprop_Monad_Mor_laws.
+    assumption.
+
+    + red. simpl. intros. apply subtypeEquality'.
+  - simpl. apply subtypeEquality'.
+    * simpl. apply funextsec. intro x. apply idpath.
+    * apply isaprop_is_nat_trans.
+      assumption.
+  - apply isaprop_Monad_Mor_laws.
+    assumption.
+Qed.
+
+Definition functor_Monad_from_Kleisli{C: precategory}(hs: has_homsets C) : functor (precategory_Kleisli C hs) (precategory_Monad C hs) := ((functor_data_monad_from_kleisli C hs) ,, is_functor_monad_from_kleisli hs).
+
+Definition Monad_Kleisli_data{C:precategory}(M: Monad_data C) : Kleisli_Data M.
+Proof.
+  unfold Kleisli_Data.
+  split.
+  - exact (Monads.η M).
+  - intros a b f.
+    exact (pr1 (Monads.μ M) b ∘ # M f).
+Defined.
+
+Lemma Monad_Kleisli_laws{C:precategory}(M: Monad C) : Kleisli_Laws (Monad_Kleisli_data M).
+(*Set Printing Coercions.*)
+Proof.
+  split.
+  Focus 2. split.
+  - simpl. intros. rewrite (nat_trans_ax (Monads.η M)).
+  - simpl. intros. rewrite assoc. rewrite (functor_comp M). rewrite assoc4.
+    replace (pr1 (μ M) b · # M g) with (# M (# M g · pr1 (μ M) c)). set (P := nat_trans_ax (Monads.μ M) _ _ g). simpl in P.
+rewrite <- P.
+Require Import UniMath.CategoryTheory.catiso.
+Lemma is_catiso{C:precategory}(hs:has_homsets C) : is_catiso(functor_Monad_from_Kleisli hs).
+Proof.
+  unfold is_catiso.
+  split.
+  - unfold fully_faithful.
+    simpl.
+    intros.
+    apply (set_bijection_to_weq).
+    + split.
+      * intros. refine (tpair _  (pr1 (pr1 y)) _).
 End Kleisli_precategory.
