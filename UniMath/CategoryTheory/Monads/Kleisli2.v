@@ -452,9 +452,8 @@ Qed.
 Definition Kleisli_from_Monad {C : precategory}(M : Monad C) : Kleisli C :=
   ((λ x, M x) ,, Monad_Kleisli_data M ,, Monad_Kleisli_laws M).
 
-Definition Kleisli_Mor_from_Monad_Mor{C : precategory} {M M' : Monad C}(α : Monad_Mor M M') : Kleisli_Mor (Kleisli_from_Monad M) (Kleisli_from_Monad M').
+Lemma Kleisli_Mor_law_from{C : precategory} {M M' : Monad C}(α : Monad_Mor M M'): Kleisli_Mor_laws (λ x : C, α x) (Kleisli_from_Monad M) (Kleisli_from_Monad M').
 Proof.
-  refine ((λ x:C, α x) ,, _).
   split.
   - simpl. intros. apply Monad_Mor_η.
   - simpl. intros. rewrite functor_comp. repeat rewrite assoc.
@@ -463,8 +462,40 @@ Proof.
     simpl in H2. repeat rewrite <- assoc. rewrite H2.
     repeat rewrite assoc. repeat rewrite assoc4. rewrite H.
     apply idpath.
-    Qed.
+Qed.
+
+Definition Kleisli_Mor_from_Monad_Mor{C : precategory} {M M' : Monad C}(α : Monad_Mor M M') : Kleisli_Mor (Kleisli_from_Monad M) (Kleisli_from_Monad M').
+Proof.
+  refine ((λ x:C, α x) ,, _).
+  apply Kleisli_Mor_law_from.
+Defined.
 Require Import UniMath.CategoryTheory.catiso.
+
+Lemma Kleisli_data_eq {C : precategory}{F : C → C}(K K' : Kleisli_Data F) :  (∏ a:C, η K a = η K' a) → (∏ (a b : C) (f: a --> F b), bind K f = bind K' f) → K = K'.
+Proof.
+  intros. apply dirprod_paths.
+  - change (η K = η K'). apply funextsec. intro a. apply X.
+  - apply funextsec. intro a. apply funextsec. intro b. apply funextfun.
+    intro f. apply X0.
+Qed.
+
+(*Lemma Kleisli_eq {C : precategory}(T T' : Kleisli C) : (∏ a:C, pr1 T a = pr1 T' a) → (∏ (a b:C) (f:ab), bind T f = bind T' f (b:=b)) → (∏ a:C, η T a = η T' a).
+Proof.*)
+
+Lemma lem1{C : precategory}(T : Kleisli C) : Monad_Kleisli_data (Kleisli_Monad_data T) = T.
+Proof.
+  apply pair_path_in2.
+  simpl. apply funextsec. intro a. apply funextsec. intro b.
+    apply funextfun. intro f. abstract (simpl; rewrite (bind_map T);
+    rewrite id_right; apply idpath).
+Defined.
+
+Lemma hmpt1{C : precategory}(hs: has_homsets C)(T : Kleisli C) : Kleisli_from_Monad ( Monad_from_Kleisli T) = T.
+Proof.
+  unfold Monad_from_Kleisli. unfold Kleisli_from_Monad. simpl. destruct T as (F , (K , L)). simpl. change (λ x:C, F x) with F. apply (pair_path_in2). apply subtypeEquality'.
+  2: apply (isaprop_Kleisli_Laws hs K).
+  simpl. apply (lem1 (F,, K,, L)).
+Defined.
 
 Lemma is_catiso{C:precategory}(hs:has_homsets C) : is_catiso(functor_Monad_from_Kleisli hs).
 Proof.
@@ -476,5 +507,30 @@ Proof.
     apply (set_bijection_to_weq).
     2: apply isaset_Monad_Mor; assumption.
     + split.
-      * intros. refine (Kleisli_Mor_from_Monad_Mor y ,, _).
+      * intros. set (y':= (Kleisli_Mor_from_Monad_Mor y)).
+        set (Ha:= hmpt1 hs a). set (Hb:= hmpt1 hs b).
+        set (y'':= transportf (λ a,  Kleisli_Mor  a (Kleisli_from_Monad (Monad_from_Kleisli b)))  Ha y'). simpl in y''.
+        set (y''':= transportf (λ b,  Kleisli_Mor  a b)  Hb y'').
+        simpl in y'''.
+        refine (y''' ,, _).
+        apply subtypeEquality'.
+        2: apply isaprop_Monad_Mor_laws; assumption.
+        simpl.
+        apply (nat_trans_eq hs).
+        destruct y as (y , Hy).
+        simpl in y'.
+        simpl in y''.
+        intros. simpl.
+        destruct y as (f , h).
+        simpl.
+        simpl in y'.
+        Print nat_trans_eq.
+
+
+
+
+
+
+
+
 End Kleisli_precategory.
